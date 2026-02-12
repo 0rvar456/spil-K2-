@@ -30,15 +30,14 @@ Markmið leiksins er að komast fyrstur í mark með því að svara spurningum 
 3. Spilarinn getur:
    - Svarað ef hann veit svarið  
    - Eða giskað ef hann er óviss
-4. Spilarinn ýtir á **litla takkann sínum megin** til að staðfesta svarið.
-5. Ef svarið er **rétt**:
+4. Ef svarið er **rétt**:
    - Spilarinn má ýta á **miðjutakkann**.
    - Ljós byrja að **spinna í hring**.
    - Ljósin gefa **slembitölu frá 1 upp í 6**.
-6. Spilarinn færist áfram um **jafnmarga reiti og talan segir til um**.
-7. Ef svarið er **rangt**:
+5. Spilarinn færist áfram um **jafnmarga reiti og talan segir til um**.
+6. Ef svarið er **rangt**:
    - Spilarinn færist ekki áfram.
-8. Næsti spilari tekur þá við.
+7. Næsti spilari tekur þá við.
 
 ---
 
