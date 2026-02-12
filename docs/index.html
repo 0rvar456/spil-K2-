@@ -1,1 +1,782 @@
-j
+<!doctype html>
+<html lang="is">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QR Quiz — Borðspil (Reveal + Spin)</title>
+  <style>
+    :root{
+      --bg:#0b1020; --card:#121a33; --text:#e9ecff; --muted:#a9b1d6;
+      --accent:#7aa2f7; --line:rgba(122,162,247,.22); --panel:#0e1630;
+      --glow:#9ece6a;
+    }
+    *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
+    body{margin:0;background:linear-gradient(180deg,#0b1020,#060914);color:var(--text)}
+    .wrap{max-width:980px;margin:0 auto;padding:18px}
+    .card{background:rgba(18,26,51,.92);border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:0 12px 30px rgba(0,0,0,.35)}
+    h1{margin:0 0 8px;font-size:20px}
+    p{margin:8px 0;color:var(--muted);line-height:1.35}
+    label{display:block;font-size:13px;color:var(--muted);margin:0 0 6px}
+    select,button{
+      width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);
+      background:var(--panel);color:var(--text);outline:none
+    }
+    button{cursor:pointer;border:none;background:var(--accent);color:#081027;font-weight:900}
+    button.secondary{background:#1a2447;color:var(--text);border:1px solid var(--line)}
+    button:disabled{opacity:.55;cursor:not-allowed}
+    .grid{display:grid;grid-template-columns:1fr;gap:12px}
+    @media (min-width:820px){.grid{grid-template-columns:1fr 1fr}}
+    .topbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-top:10px}
+    .pill{display:inline-flex;gap:8px;align-items:center;padding:6px 10px;border-radius:999px;
+      border:1px solid var(--line);color:var(--muted);font-size:12px}
+    .hr{height:1px;background:rgba(122,162,247,.18);margin:12px 0}
+    .q{font-size:20px;margin:6px 0 0}
+    .hint{margin-top:8px;color:var(--muted);font-size:13px}
+    .answerBox{
+      margin-top:12px;background:var(--panel);border:1px dashed var(--line);
+      border-radius:14px;padding:12px;
+    }
+    .answerLabel{font-size:12px;color:var(--muted);margin-bottom:6px}
+    .answerText{font-size:16px}
+    .blur{filter: blur(9px); user-select:none}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    .row > *{flex:1 1 180px}
+    .tiny{font-size:12px;color:var(--muted)}
+    .hidden{display:none}
+
+    /* Spinner */
+    .spinnerWrap{
+      margin-top:12px;
+      border:1px solid var(--line);
+      border-radius:16px;
+      background:var(--panel);
+      padding:14px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      align-items:center;
+    }
+    .spinnerTitle{font-size:12px;color:var(--muted);text-align:center}
+    .ring{
+      display:grid;
+      grid-template-columns:repeat(3, 44px);
+      grid-template-rows:repeat(2, 44px);
+      gap:12px;
+      align-items:center;
+      justify-content:center;
+    }
+    .cell{
+      width:44px;height:44px;border-radius:999px;
+      border:1px solid rgba(122,162,247,.28);
+      background:rgba(255,255,255,.03);
+      display:flex;align-items:center;justify-content:center;
+      font-weight:900;
+      color:var(--muted);
+      transition:transform .08s ease, box-shadow .08s ease, border-color .08s ease;
+    }
+    .cell.active{
+      color:#06110b;
+      border-color:rgba(158,206,106,.9);
+      box-shadow:0 0 0 3px rgba(158,206,106,.25), 0 0 28px rgba(158,206,106,.35);
+      background:rgba(158,206,106,.22);
+      transform:scale(1.04);
+    }
+    .result{
+      font-size:38px;font-weight:1000;letter-spacing:1px;
+    }
+
+    /* Rules modal */
+    .modalBackdrop{
+      position:fixed;inset:0;background:rgba(0,0,0,.55);
+      display:none;align-items:center;justify-content:center;padding:18px;z-index:50;
+    }
+    .modal{
+      width:min(780px, 96vw);
+      background:rgba(18,26,51,.98);
+      border:1px solid var(--line);
+      border-radius:18px;
+      box-shadow:0 20px 60px rgba(0,0,0,.55);
+      padding:16px;
+    }
+    .modal h2{margin:0 0 8px;font-size:18px}
+    .modal ol{margin:8px 0 0;padding-left:18px;color:var(--muted);line-height:1.45}
+    .modal .row{margin-top:12px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div style="display:flex;gap:10px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap">
+        <div>
+          <h1>QR Quiz — Borðspil (Reveal + Spin)</h1>
+          <p>Next → svara upphátt → Reveal answer → <b>ef rétt</b> SPIN (ljósið stoppar á 1–6) → Next.</p>
+        </div>
+        <div style="min-width:180px">
+          <button class="secondary" id="rulesBtn">Reglur</button>
+        </div>
+      </div>
+
+      <!-- SETUP -->
+      <div id="setup">
+        <div class="grid">
+          <div>
+            <label for="category">Flokkur</label>
+            <select id="category">
+              <option value="football" selected>Fótbolti (50)</option>
+              <option value="school">Skólagreinar (50)</option>
+              <option value="movies">Kvikmyndir (50)</option>
+              <option value="history">Saga (50)</option>
+              <option value="famous">Frægt fólk (50)</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="players">Hversu margir spila? (1–5)</label>
+            <select id="players">
+              <option value="1">1</option>
+              <option value="2" selected>2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="count">Hversu margar spurningar í leiknum?</label>
+            <select id="count">
+              <option value="10">10</option>
+              <option value="15">15</option>
+              <option value="20" selected>20</option>
+              <option value="25">25</option>
+              <option value="30">30</option>
+              <option value="40">40</option>
+              <option value="50">50</option>
+            </select>
+            <p class="tiny">Hver flokkur á nákvæmlega 50 spurningar.</p>
+          </div>
+
+          <div>
+            <label>&nbsp;</label>
+            <button id="startBtn">Byrja</button>
+          </div>
+        </div>
+
+        <div class="hr"></div>
+        <p class="tiny">Certainty meter: <b>0.78</b> (spurningar eru trivia; nokkrar “met”-spurningar geta breyst með tíma).</p>
+      </div>
+
+      <!-- GAME -->
+      <div id="game" class="hidden">
+        <div class="topbar">
+          <div class="pill" id="metaPill">—</div>
+          <div class="pill">Spurning: <span id="idx">0</span>/<span id="total">0</span></div>
+          <div class="pill">Næstur: <span id="turnLabel">1</span></div>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="q" id="qText">Ýttu á Next til að byrja.</div>
+        <div class="hint" id="phaseHint">—</div>
+
+        <div class="answerBox">
+          <div class="answerLabel">Svar</div>
+          <div class="answerText blur" id="aText">—</div>
+        </div>
+
+        <div class="spinnerWrap">
+          <div class="spinnerTitle">
+            SPIN (aðeins ef svarið var rétt) — ljósið stoppar á 1–6 og það eru reitirnir sem þú mátt fara áfram.
+          </div>
+
+          <div class="ring" aria-label="spinner">
+            <div class="cell" data-n="1">1</div>
+            <div class="cell" data-n="2">2</div>
+            <div class="cell" data-n="3">3</div>
+            <div class="cell" data-n="4">4</div>
+            <div class="cell" data-n="5">5</div>
+            <div class="cell" data-n="6">6</div>
+          </div>
+
+          <div class="result" id="spinResult">—</div>
+          <div class="tiny" id="spinHint">Sýnd niðurstaða kemur hér.</div>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="row">
+          <button class="secondary" id="quitBtn">Til baka</button>
+          <button id="nextBtn">Next</button>
+          <button class="secondary" id="revealBtn" disabled>Reveal answer</button>
+          <button id="spinBtn" disabled>SPIN</button>
+        </div>
+
+        <p class="tiny" style="margin-top:10px">
+          Leikurinn skráir ekki “rétt/rangt” — þið ákveðið það. Ef rangt: slepptu SPIN og ýttu á Next.
+        </p>
+      </div>
+
+      <!-- END -->
+      <div id="end" class="hidden">
+        <h1>Leik lokið</h1>
+        <p id="endText"></p>
+        <div class="row">
+          <button id="restartBtn">Spila aftur</button>
+          <button class="secondary" id="backBtn">Til baka í val</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RULES MODAL -->
+  <div class="modalBackdrop" id="rulesModal">
+    <div class="modal">
+      <h2>Reglur</h2>
+      <ol>
+        <li>Veljið flokk og fjölda spilara.</li>
+        <li>Ýttu á <b>Next</b> til að fá spurningu fyrir næsta spilara.</li>
+        <li>Spilari <b>svarar upphátt</b> (engin skrif).</li>
+        <li>Ýttu á <b>Reveal answer</b> til að sjá rétt svar.</li>
+        <li>Ef svarið var rétt: ýttu á <b>SPIN</b> — ljósið stoppar á <b>1–6</b>.</li>
+        <li>Talan sem ljósið lendir á = <b>hversu marga reiti</b> má fara áfram á borðinu.</li>
+        <li>Ef rangt: slepptu SPIN og ýttu á <b>Next</b> (turn fer áfram).</li>
+        <li>Fyrstur í mark (samkvæmt borðinu ykkar) vinnur.</li>
+      </ol>
+      <div class="row">
+        <button id="closeRules">Loka</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* =========================
+   50 spurningar í hverjum flokki
+   Format: { q: "...", a: "..." }
+   ========================= */
+
+const BANK = {
+  // FÓTBOLTI (50) — HM/EM/UCL/BDO + markamet sem eru mjög algeng trivia
+  football: [
+    // HM winners (15)
+    {q:"Hver vann HM 1958?",a:"Brasilía."},
+    {q:"Hver vann HM 1966?",a:"England."},
+    {q:"Hver vann HM 1970?",a:"Brasilía."},
+    {q:"Hver vann HM 1974?",a:"Vestur-Þýskaland."},
+    {q:"Hver vann HM 1978?",a:"Argentína."},
+    {q:"Hver vann HM 1982?",a:"Ítalía."},
+    {q:"Hver vann HM 1986?",a:"Argentína."},
+    {q:"Hver vann HM 1990?",a:"Vestur-Þýskaland."},
+    {q:"Hver vann HM 1994?",a:"Brasilía."},
+    {q:"Hver vann HM 1998?",a:"Frakkland."},
+    {q:"Hver vann HM 2002?",a:"Brasilía."},
+    {q:"Hver vann HM 2006?",a:"Ítalía."},
+    {q:"Hver vann HM 2010?",a:"Spánn."},
+    {q:"Hver vann HM 2014?",a:"Þýskaland."},
+    {q:"Hver vann HM 2022?",a:"Argentína."},
+
+    // EM winners (10)
+    {q:"Hver vann EM 1988?",a:"Holland."},
+    {q:"Hver vann EM 1992?",a:"Danmörk."},
+    {q:"Hver vann EM 1996?",a:"Þýskaland."},
+    {q:"Hver vann EM 2000?",a:"Frakkland."},
+    {q:"Hver vann EM 2004?",a:"Grikkland."},
+    {q:"Hver vann EM 2008?",a:"Spánn."},
+    {q:"Hver vann EM 2012?",a:"Spánn."},
+    {q:"Hver vann EM 2016?",a:"Portúgal."},
+    {q:"Hver vann EM 2020 (spilað 2021)?",a:"Ítalía."},
+    {q:"Hvaða land vann fyrsta EM (1960)?",a:"Sovétríkin."},
+
+    // UCL winners (15)
+    {q:"Hver vann Champions League 1999?",a:"Manchester United."},
+    {q:"Hver vann Champions League 2005?",a:"Liverpool."},
+    {q:"Hver vann Champions League 2007?",a:"AC Milan."},
+    {q:"Hver vann Champions League 2008?",a:"Manchester United."},
+    {q:"Hver vann Champions League 2009?",a:"Barcelona."},
+    {q:"Hver vann Champions League 2010?",a:"Inter."},
+    {q:"Hver vann Champions League 2011?",a:"Barcelona."},
+    {q:"Hver vann Champions League 2012?",a:"Chelsea."},
+    {q:"Hver vann Champions League 2013?",a:"Bayern München."},
+    {q:"Hver vann Champions League 2014?",a:"Real Madrid."},
+    {q:"Hver vann Champions League 2015?",a:"Barcelona."},
+    {q:"Hver vann Champions League 2018?",a:"Real Madrid."},
+    {q:"Hver vann Champions League 2019?",a:"Liverpool."},
+    {q:"Hver vann Champions League 2020?",a:"Bayern München."},
+    {q:"Hver vann Champions League 2023?",a:"Manchester City."},
+
+    // Ballon d'Or + met (10)
+    {q:"Hver vann Ballon d’Or 2007?",a:"Kaká."},
+    {q:"Hver vann Ballon d’Or 2008?",a:"Cristiano Ronaldo."},
+    {q:"Hver vann Ballon d’Or 2018?",a:"Luka Modrić."},
+    {q:"Hver vann Ballon d’Or 2022?",a:"Karim Benzema."},
+    {q:"Hver vann Ballon d’Or 2023?",a:"Lionel Messi."},
+    {q:"Hver er markahæsti leikmaður í sögu HM (all-time)?",a:"Miroslav Klose."},
+    {q:"Hver er markahæsti leikmaður í sögu EM (all-time)?",a:"Cristiano Ronaldo."},
+    {q:"Hver er markahæsti leikmaður í sögu Champions League (all-time)?",a:"Cristiano Ronaldo."},
+    {q:"Hver er markahæsti leikmaður í sögu Barcelona?",a:"Lionel Messi."},
+    {q:"Hver er markahæsti leikmaður í sögu Real Madrid?",a:"Cristiano Ronaldo."}
+  ],
+
+  // SKÓLAGREINAR (50)
+  school: [
+    {q:"Leystu: 3x − 7 = 20.",a:"x = 9."},
+    {q:"Leystu: 2(x+5)=34.",a:"x = 12."},
+    {q:"Hvað er 15% af 260?",a:"39."},
+    {q:"Hvað er 7/8 sem tugabrot?",a:"0,875."},
+    {q:"Hver er hallatala línu í gegnum (0,2) og (4,10)?",a:"2."},
+    {q:"Hvert er x-skera: y = 3x − 12 ?",a:"x = 4."},
+    {q:"Hvað er √144 ?",a:"12."},
+    {q:"Hvað er 5² + 12² ?",a:"169."},
+    {q:"Hvað er efnatáknið Fe?",a:"Járn."},
+    {q:"Hvað er efnatáknið Na?",a:"Natríum."},
+    {q:"Hvað er formúlan fyrir koldíoxíð?",a:"CO₂."},
+    {q:"Hvað er formúlan fyrir vatn?",a:"H₂O."},
+    {q:"Hvað kallast vökvi → gas?",a:"Uppgufun."},
+    {q:"Hvað kallast gas → vökvi?",a:"Þétting."},
+    {q:"Hvað kallast fast → vökvi?",a:"Bráðnun."},
+    {q:"Hvert er hlutverk hvatbera?",a:"Mynda ATP/orku."},
+    {q:"Hvað kallast frumuskipting líkamsfrumna?",a:"Mítósa."},
+    {q:"Hvað kallast frumuskipting kynfrumna?",a:"Meiósa."},
+    {q:"Hvað er F=ma?",a:"2. lögmál Newtons."},
+    {q:"Hvað er Ohms-lögmál?",a:"V = I·R."},
+    {q:"Hvað er pH < 7?",a:"Súrt."},
+    {q:"Hvað er pH > 7?",a:"Basískt."},
+    {q:"Hvað er meðaltal 6,8,10,16?",a:"10."},
+    {q:"Hvað er miðgildi í [1,3,7,9,10]?",a:"7."},
+    {q:"Hvað er tíðasta gildi (mode)?",a:"Algengasta gildið."},
+    {q:"Hvað er Pýþagórasarreglan?",a:"Í rétthyrndum þríhyrningi: a²+b²=c²."},
+    {q:"Hvað er 2 í −3 veldi?",a:"1/8."},
+    {q:"Hvað er ∫2x dx?",a:"x² + C."},
+    {q:"Hver er afleiða x²?",a:"2x."},
+    {q:"Hver er afleiða sin(x)?",a:"cos(x)."},
+    {q:"Hvað er frumtala?",a:"Tala >1 með nákvæmlega tvo deila (1 og sjálfa sig)."},
+    {q:"Frumþáttun 60?",a:"2² · 3 · 5."},
+    {q:"Hvað er flatarmál hrings með r=3?",a:"9π."},
+    {q:"Hvað er ummál hrings með r=3?",a:"6π."},
+    {q:"Hvað er ljóstillífun (í orðum)?",a:"CO₂ + H₂O + ljós → sykrur + O₂."},
+    {q:"Hvað er DNA?",a:"Erfðaefni frumna."},
+    {q:"Hvað er RNA (einfalt)?",a:"Tekur þátt í próteinmyndun."},
+    {q:"Hvað er rafstraumur mældur í?",a:"Amperum (A)."},
+    {q:"Hvað er spenna mæld í?",a:"Volt (V)."},
+    {q:"Hvað er viðnám mælt í?",a:"Ohm (Ω)."},
+    {q:"Hvað er orka mæld í?",a:"Joule (J)."},
+    {q:"Hvað er afl mælt í?",a:"Watt (W)."},
+    {q:"Hvað er hraði (v) skilgreindur sem?",a:"Vegalengd/tími."},
+    {q:"Hvað er hröðun (a) skilgreind sem?",a:"Breyting á hraða/tími."},
+    {q:"Hvað er massi vs þyngd?",a:"Þyngd er kraftur (m·g), massi er magn efnis."},
+    {q:"Hvað er jón?",a:"Hlaðin eind (atómið hefur misst/fengið rafeindir)."},
+    {q:"Hvað er samsæta?",a:"Sama frumefni, mismunandi nifteindir."},
+    {q:"Hvað er mól (mole)?",a:"6.022×10²³ eindir."},
+    {q:"Hvað eru lýsingarorð?",a:"Orð sem lýsa nafnorðum."},
+    {q:"Hvað er nefnifall?",a:"Frumlagsfall."},
+    {q:"Hvað er aukasetning?",a:"Setning sem er háð aðalsetningu."},
+    {q:"Hvað merkir lýðræði?",a:"Vald fólksins."}
+  ],
+
+  // KVIKMYNDIR (50)
+  movies: [
+    {q:"Hver leikstýrði Inception?",a:"Christopher Nolan."},
+    {q:"Hver lék Joker í The Dark Knight?",a:"Heath Ledger."},
+    {q:"Í hvaða mynd er “Here’s looking at you, kid”?",a:"Casablanca."},
+    {q:"Hvaða mynd vann 11 Óskara (1997)?",a:"Titanic."},
+    {q:"Hver leikstýrði Pulp Fiction?",a:"Quentin Tarantino."},
+    {q:"Hvaða mynd er fræg fyrir “Rosebud”?",a:"Citizen Kane."},
+    {q:"Hvaða mynd er með HAL 9000?",a:"2001: A Space Odyssey."},
+    {q:"Hvaða mynd er fræg fyrir “May the Force be with you”?",a:"Star Wars."},
+    {q:"Hver lék Neo í The Matrix?",a:"Keanu Reeves."},
+    {q:"Hvaða mynd er um Tyler Durden?",a:"Fight Club."},
+    {q:"Hver leikstýrði Schindler’s List?",a:"Steven Spielberg."},
+    {q:"Hvaða mynd vann Best Picture fyrir 2019 og var fyrsta ó-enska til að vinna?",a:"Parasite."},
+    {q:"Hvaða mynd er með Ellen Ripley?",a:"Alien."},
+    {q:"Hvaða mynd er með “I see dead people”?",a:"The Sixth Sense."},
+    {q:"Hvaða mynd er um Maximus í forn-Róm?",a:"Gladiator."},
+    {q:"Hver leikstýrði LOTR þríleiknum?",a:"Peter Jackson."},
+    {q:"Hver samdi tónlistina í LOTR?",a:"Howard Shore."},
+    {q:"Hvaða mynd er um sama daginn aftur og aftur?",a:"Groundhog Day."},
+    {q:"Hvaða mynd er fræg fyrir “Here’s Johnny!”?",a:"The Shining."},
+    {q:"Hvaða mynd er með Norman Bates?",a:"Psycho."},
+    {q:"Hver lék Jack í Titanic?",a:"Leonardo DiCaprio."},
+    {q:"Hver lék Vito Corleone í The Godfather?",a:"Marlon Brando."},
+    {q:"Hvaða mynd er fræg fyrir “You talking to me?”?",a:"Taxi Driver."},
+    {q:"Hver leikstýrði Taxi Driver?",a:"Martin Scorsese."},
+    {q:"Hvaða mynd er fræg fyrir “offer he can’t refuse”?",a:"The Godfather."},
+    {q:"Hvaða mynd er fræg fyrir 'red pill / blue pill'?",a:"The Matrix."},
+    {q:"Hvaða mynd er um risaeðlur á eyju (1993)?",a:"Jurassic Park."},
+    {q:"Hver lék Wolverine í X-Men?",a:"Hugh Jackman."},
+    {q:"Hver lék Iron Man í MCU?",a:"Robert Downey Jr."},
+    {q:"Hver lék Captain America í MCU?",a:"Chris Evans."},
+    {q:"Hvaða mynd er um drauma-„heist“ og totem?",a:"Inception."},
+    {q:"Hvaða mynd er um Truman í sjónvarpsheimi?",a:"The Truman Show."},
+    {q:"Hvaða mynd er um Mozart og heitir Amadeus?",a:"Amadeus."},
+    {q:"Hvaða mynd er um stríð og er gerð eins og ein löng samfella (2019)?",a:"1917."},
+    {q:"Hvaða mynd er fræg fyrir “I’ll be back”?",a:"The Terminator."},
+    {q:"Hver lék Terminator í fyrstu myndinni?",a:"Arnold Schwarzenegger."},
+    {q:"Hvaða mynd er um E.T.?",a:"E.T. the Extra-Terrestrial."},
+    {q:"Hvaða mynd er fræg fyrir “You can’t handle the truth!”?",a:"A Few Good Men."},
+    {q:"Hvaða mynd er með persónuna Jules Winnfield?",a:"Pulp Fiction."},
+    {q:"Hvaða mynd er um 'heist' í Boston og heitir The Town?",a:"The Town."},
+    {q:"Hvaða mynd er um spænskan fantasiu-labyrinth (Guillermo del Toro)?",a:"Pan’s Labyrinth."},
+    {q:"Hver leikstýrði The Grand Budapest Hotel?",a:"Wes Anderson."},
+    {q:"Hvaða mynd er fræg fyrir “Bond, James Bond” (franchise)?",a:"James Bond."},
+    {q:"Hvaða mynd er fræg fyrir “Yippie-ki-yay”?",a:"Die Hard."},
+    {q:"Hvaða Pixar mynd lyftir húsi með blöðrum?",a:"Up."},
+    {q:"Hvaða Pixar mynd er um tilfinningar inni í höfði barns?",a:"Inside Out."},
+    {q:"Hvaða mynd er um Batman og Bane?",a:"The Dark Knight Rises."},
+    {q:"Hvaða mynd er um samkeppni töframanna og heitir The Prestige?",a:"The Prestige."},
+    {q:"Hvaða mynd fjallar um 'replicants' í framtíð (1982)?",a:"Blade Runner."},
+    {q:"Hver lék Joker í Joker (2019)?",a:"Joaquin Phoenix."}
+  ],
+
+  // SAGA (50)
+  history: [
+    {q:"Í hvaða ári féll Vestrómverska ríkið (algengt ártal)?",a:"476."},
+    {q:"Hvaða atburður 1492 er oft notaður sem táknrænt upphaf nýaldar í Evrópu?",a:"Kólumbus siglir til Ameríku."},
+    {q:"Hvaða ár var Magna Carta?",a:"1215."},
+    {q:"Hvaða ár féll Konstantínópel til Ottómana?",a:"1453."},
+    {q:"Hvað kallast faraldurinn á 14. öld sem drap mjög marga í Evrópu?",a:"Svarti dauði (plágan)."},
+    {q:"Hvenær hófst franska byltingin (Bastillan)?",a:"1789."},
+    {q:"Hvenær hófst fyrri heimsstyrjöldin?",a:"1914."},
+    {q:"Hvenær lauk fyrri heimsstyrjöldin?",a:"1918."},
+    {q:"Hvenær hófst seinni heimsstyrjöldin í Evrópu?",a:"1939."},
+    {q:"Hvenær lauk seinni heimsstyrjöldin í Evrópu?",a:"1945."},
+    {q:"Hvaða ár var D-dagur?",a:"1944."},
+    {q:"Hvaða ár var Sameinuðu þjóðirnar stofnaðar?",a:"1945."},
+    {q:"Hvenær var NATO stofnað?",a:"1949."},
+    {q:"Hvenær var Apollo 11 tunglgangan?",a:"1969."},
+    {q:"Hvað var Kalda stríðið (í stuttu)?",a:"Spennuátök USA vs Sovétríkin eftir WWII."},
+    {q:"Hvaða ár féll Berlínarmúrinn?",a:"1989."},
+    {q:"Hvenær leystust Sovétríkin upp?",a:"1991."},
+    {q:"Hvenær var bandaríska sjálfstæðisyfirlýsingin?",a:"1776."},
+    {q:"Hvenær var rússneska byltingin (októberbylting)?",a:"1917."},
+    {q:"Hvað var Versalasamningurinn?",a:"Friðarsamningur 1919 sem lauk formlega WWI."},
+    {q:"Hvað var Marshall-áætlunin?",a:"Efnahagsaðstoð USA til endurreisnar Evrópu eftir WWII."},
+    {q:"Hvað var Kreppan mikla (Great Depression)?",a:"Efnahagslægð sem hófst 1929."},
+    {q:"Hvaða ár var Kúbudeilan?",a:"1962."},
+    {q:"Hvað var Silkivegurinn?",a:"Verslunarleiðanet milli Asíu og Evrópu."},
+    {q:"Hvað var iðnbyltingin?",a:"Vélvæðing og verksmiðjuvæðing (18.–19. öld)."},
+    {q:"Hvað var endurreisnin (Renaissance)?",a:"Menningar- og hugmyndabylting í Evrópu."},
+    {q:"Hvað var upplýsingaröldin (Enlightenment)?",a:"Áhersla á rök, vísindi og réttindi."},
+    {q:"Hvað voru krossferðir?",a:"Herferðir kristinna ríkja til Miðausturlanda á miðöldum."},
+    {q:"Hvenær var bandaríska borgarastyrjöldin?",a:"1861–1865."},
+    {q:"Hvenær varð Indland sjálfstætt frá Bretlandi?",a:"1947."},
+    {q:"Hvenær var Kína lýst alþýðulýðveldi?",a:"1949."},
+    {q:"Hvað var Apartheid?",a:"Lögbundin aðskilnaðarstefna í Suður-Afríku."},
+    {q:"Hvaða ár voru kosningar 1994 í SA (lokaskref Apartheid)?",a:"1994."},
+    {q:"Hvað er lénskerfi (feudalism)?",a:"Kerfi byggt á lénum og hollustu á miðöldum."},
+    {q:"Hvenær var Gutenberg prentvélin (u.þ.b.)?",a:"Um 1450."},
+    {q:"Hvað er Austurrómverska ríkið líka kallað?",a:"Býsansríkið."},
+    {q:"Hvað var járntjaldið?",a:"Hugtak um skil austurs/vesturs í Evrópu í Kalda stríðinu."},
+    {q:"Hvenær sameinaðist Þýskaland aftur?",a:"1990."},
+    {q:"Hvað var Meiji endurreisnin?",a:"Nútímavæðing Japan frá 1868."},
+    {q:"Hvenær hófst Meiji tímabilið?",a:"1868."},
+    {q:"Hvað var Pax Romana?",a:"Tímabil friðar/stöðugleika í Rómaveldi."},
+    {q:"Hver var fyrsti keisari Rómar (principate)?",a:"Ágústus."},
+    {q:"Hver var Djengis Khan?",a:"Leiðtogi Mongóla og stofnandi Mongólska heimsveldisins."},
+    {q:"Hvað er Helleníska tímabilið?",a:"Tími eftir Alexander mikla með útbreiðslu grískrar menningar."},
+    {q:"Hver var Alexander mikli?",a:"Makedónskur konungur (4. öld f.Kr.)."},
+    {q:"Hvenær var ESB í núverandi mynd (Maastricht tók gildi)?",a:"1993."},
+    {q:"Hvenær lauk Hundrað ára stríðinu (almennt)?",a:"1453."},
+    {q:"Hvað var 'Age of Exploration'?",a:"Landafundatími Evrópumanna (15.–17. öld)."},
+    {q:"Hvenær var Napóleon krýndur keisari?",a:"1804."},
+    {q:"Hvenær hófst siðbótin (95 tesur Lúthers)?",a:"1517."}
+  ],
+
+  // FRÆGT FÓLK (50)
+  famous: [
+    {q:"Hver skrifaði Hamlet?",a:"William Shakespeare."},
+    {q:"Hver málaði Mona Lisa?",a:"Leonardo da Vinci."},
+    {q:"Hver samdi 9. sinfóníu (Ode to Joy)?",a:"Ludwig van Beethoven."},
+    {q:"Hver setti fram afstæðiskenninguna?",a:"Albert Einstein."},
+    {q:"Hver er tengdur við lögmál hreyfingar (Newton)?",a:"Isaac Newton."},
+    {q:"Hver uppgötvaði penicillin?",a:"Alexander Fleming."},
+    {q:"Hver var fyrsta manneskjan á tunglinu?",a:"Neil Armstrong."},
+    {q:"Hver var fyrstur í geim (1961)?",a:"Yuri Gagarin."},
+    {q:"Hver hélt 'I Have a Dream' ræðuna?",a:"Martin Luther King Jr."},
+    {q:"Hver var leiðtogi Indlands í sjálfstæðisbaráttu með ofbeldisleysi?",a:"Mahatma Gandhi."},
+    {q:"Hver var Nelson Mandela?",a:"Leiðtogi gegn Apartheid, síðar forseti SA."},
+    {q:"Hver skrifaði 1984?",a:"George Orwell."},
+    {q:"Hver skrifaði Pride and Prejudice?",a:"Jane Austen."},
+    {q:"Hver skrifaði The Lord of the Rings?",a:"J.R.R. Tolkien."},
+    {q:"Hver skrifaði Harry Potter?",a:"J.K. Rowling."},
+    {q:"Hver var Cleopatra?",a:"Egyptsk drottning."},
+    {q:"Hver var Júliusi Caesar?",a:"Rómverskur stjórnmálamaður/herforingi."},
+    {q:"Hver var Sókrates?",a:"Grískur heimspekingur."},
+    {q:"Hver var Aristóteles?",a:"Grískur heimspekingur."},
+    {q:"Hver var Charles Darwin?",a:"Setti fram þróunarkenningu með náttúruvali."},
+    {q:"Hver var Marie Curie?",a:"Vísindakona; tengd geislavirkni og Nóbelsverðlaunum."},
+    {q:"Hver var Nikola Tesla?",a:"Uppfinningamaður; AC-kerfi."},
+    {q:"Hver var Thomas Edison?",a:"Uppfinningamaður (algengt tengdur ljósaperu o.fl.)."},
+    {q:"Hver var Steve Jobs?",a:"Meðstofnandi Apple."},
+    {q:"Hver var Bill Gates?",a:"Meðstofnandi Microsoft."},
+    {q:"Hver var Vincent van Gogh?",a:"Málari."},
+    {q:"Hver var Pablo Picasso?",a:"Listamaður."},
+    {q:"Hver var Michelangelo?",a:"Listamaður."},
+    {q:"Hver var Wolfgang Amadeus Mozart?",a:"Tónskáld."},
+    {q:"Hver var Antonio Vivaldi?",a:"Tónskáld."},
+    {q:"Hver var Pyotr Tchaikovsky?",a:"Tónskáld."},
+    {q:"Hver var Stephen Hawking?",a:"Eðlisfræðingur."},
+    {q:"Hver var René Descartes?",a:"Heimspekingur."},
+    {q:"Hver skrifaði The Prince?",a:"Niccolò Machiavelli."},
+    {q:"Hver skrifaði The Divine Comedy?",a:"Dante Alighieri."},
+    {q:"Hver skrifaði Don Quixote?",a:"Miguel de Cervantes."},
+    {q:"Hver var Andy Warhol?",a:"Pop-listamaður."},
+    {q:"Hver var Elvis Presley?",a:"Tónlistarmaður."},
+    {q:"Hver var Michael Jackson?",a:"Tónlistarmaður."},
+    {q:"Hver var Winston Churchill?",a:"Breskur leiðtogi í WWII."},
+    {q:"Hver var Margaret Thatcher?",a:"Breskur forsætisráðherra."},
+    {q:"Hver var Abraham Lincoln?",a:"16. forseti USA."},
+    {q:"Hver var George Washington?",a:"1. forseti USA."},
+    {q:"Hver var Napóleon Bonaparte?",a:"Franskur herforingi/keisari."},
+    {q:"Hver var Galileo Galilei?",a:"Vísindamaður/stjörnufræðingur."},
+    {q:"Hver var Nicolaus Copernicus?",a:"Sólmiðjukerfi (heliocentrism)."},
+    {q:"Hver var Johannes Kepler?",a:"Lögmál reikistjarnabrauta."},
+    {q:"Hver var Pýþagóras?",a:"Stærðfræðingur."},
+    {q:"Hver var Hómer (Homer)?",a:"Hefðbundið eignaður Íliönu og Ódysseifskviðu."},
+    {q:"Hver var Sun Tzu?",a:"Höfundur The Art of War."}
+  ]
+};
+
+/* =========================
+   App logic
+   ========================= */
+const $ = (id)=>document.getElementById(id);
+
+const setupDiv = $("setup");
+const gameDiv  = $("game");
+const endDiv   = $("end");
+
+const categorySel = $("category");
+const playersSel  = $("players");
+const countSel    = $("count");
+
+const startBtn = $("startBtn");
+const quitBtn  = $("quitBtn");
+const nextBtn  = $("nextBtn");
+const revealBtn= $("revealBtn");
+const spinBtn  = $("spinBtn");
+
+const metaPill = $("metaPill");
+const idxSpan  = $("idx");
+const totalSpan= $("total");
+const turnLabel= $("turnLabel");
+
+const qText    = $("qText");
+const aText    = $("aText");
+const phaseHint= $("phaseHint");
+
+const spinCells = Array.from(document.querySelectorAll(".cell"));
+const spinResult = $("spinResult");
+const spinHint   = $("spinHint");
+
+const endText  = $("endText");
+const restartBtn = $("restartBtn");
+const backBtn    = $("backBtn");
+
+/* Rules modal */
+const rulesBtn = $("rulesBtn");
+const rulesModal = $("rulesModal");
+const closeRules = $("closeRules");
+
+let deck = [];
+let i = 0;
+let players = 2;
+let turn = 0;
+
+/*
+PHASES:
+- "idle"      : waiting to show question
+- "question"  : question shown, answer hidden
+- "revealed"  : answer visible, spin allowed
+*/
+let phase = "idle";
+
+function shuffle(arr){
+  const a = arr.slice();
+  for(let j=a.length-1;j>0;j--){
+    const k = Math.floor(Math.random()*(j+1));
+    [a[j],a[k]]=[a[k],a[j]];
+  }
+  return a;
+}
+
+function labelCategory(key){
+  return ({
+    football:"Fótbolti",
+    school:"Skólagreinar",
+    movies:"Kvikmyndir",
+    history:"Saga",
+    famous:"Frægt fólk"
+  })[key] || key;
+}
+
+function clearSpinHighlight(){
+  for(const c of spinCells) c.classList.remove("active");
+}
+
+function highlight(n){
+  clearSpinHighlight();
+  const cell = spinCells.find(x => x.dataset.n === String(n));
+  if(cell) cell.classList.add("active");
+}
+
+function setPhase(newPhase){
+  phase = newPhase;
+
+  if(phase === "idle"){
+    revealBtn.disabled = true;
+    spinBtn.disabled = true;
+    aText.classList.add("blur");
+    spinResult.textContent = "—";
+    spinHint.textContent = "Ýttu á Next til að fá spurningu.";
+    phaseHint.textContent = "Næsta skref: Next.";
+    clearSpinHighlight();
+  }
+
+  if(phase === "question"){
+    revealBtn.disabled = false;
+    spinBtn.disabled = true;
+    aText.classList.add("blur");
+    spinResult.textContent = "—";
+    spinHint.textContent = "Svaraðu upphátt, ýttu svo á Reveal answer.";
+    phaseHint.textContent = "Svaraðu upphátt. Svo: Reveal answer.";
+    clearSpinHighlight();
+  }
+
+  if(phase === "revealed"){
+    revealBtn.disabled = true;
+    spinBtn.disabled = false;
+    aText.classList.remove("blur");
+    spinHint.textContent = "Ef þú varst með rétt: SPIN. Ef rangt: slepptu SPIN og ýttu á Next.";
+    phaseHint.textContent = "Svar sýnt. Ef rétt: SPIN. Annars: Next.";
+  }
+
+  updateHeader();
+}
+
+function updateHeader(){
+  metaPill.textContent = `${labelCategory(categorySel.value)} • ${players} spilari${players>1?'ar':''}`;
+  idxSpan.textContent = String(Math.min(i, deck.length));
+  totalSpan.textContent = String(deck.length);
+  turnLabel.textContent = String(turn+1);
+}
+
+function startGame(){
+  const cat = categorySel.value;
+  players = parseInt(playersSel.value,10);
+  const desired = parseInt(countSel.value,10);
+
+  const pool = BANK[cat] ? shuffle(BANK[cat]) : [];
+  deck = pool.slice(0, Math.min(desired, 50)); // up to 50
+  i = 0;
+  turn = 0;
+
+  setupDiv.classList.add("hidden");
+  endDiv.classList.add("hidden");
+  gameDiv.classList.remove("hidden");
+
+  qText.textContent = "Ýttu á Next til að byrja.";
+  aText.textContent = "—";
+  updateHeader();
+  setPhase("idle");
+}
+
+function showQuestion(){
+  if(i >= deck.length){
+    finish();
+    return;
+  }
+  const item = deck[i];
+  qText.textContent = item.q;
+  aText.textContent = item.a;
+  setPhase("question");
+}
+
+function revealAnswer(){
+  if(i >= deck.length) return;
+  setPhase("revealed");
+}
+
+function doSpin(){
+  // “ljósið” snýst og stoppar á tölu 1..6
+  spinBtn.disabled = true;
+
+  let steps = 20 + Math.floor(Math.random()*16); // lengd snúnings
+  let current = 1 + Math.floor(Math.random()*6);
+  let speed = 60;
+
+  spinHint.textContent = "Sný...";
+
+  const timer = setInterval(()=>{
+    current = (current % 6) + 1;
+    highlight(current);
+    steps--;
+
+    // hægjum í lokin
+    if(steps < 10) speed = 95;
+    if(steps < 6) speed = 135;
+
+    if(steps <= 0){
+      clearInterval(timer);
+      spinResult.textContent = String(current);
+      spinHint.textContent = `Niðurstaða: ${current}. Farðu ${current} reiti áfram. Ýttu svo á Next.`;
+      // halda spin óvirku (þar til næsta spurning)
+      spinBtn.disabled = true;
+      phaseHint.textContent = "Farðu reiti á borðinu. Svo: Next.";
+    }
+  }, speed);
+}
+
+function advanceTurn(){
+  if(phase === "idle"){
+    showQuestion();
+    return;
+  }
+
+  // Ef fólk ýtir á Next of snemma, þá bara fer leikurinn áfram (skip)
+  if(phase === "question" || phase === "revealed"){
+    i++;
+    turn = (turn + 1) % players;
+
+    if(i >= deck.length){
+      finish();
+      return;
+    }
+
+    qText.textContent = "Ýttu á Next til að fá spurningu.";
+    aText.textContent = "—";
+    setPhase("idle");
+  }
+}
+
+function finish(){
+  gameDiv.classList.add("hidden");
+  endDiv.classList.remove("hidden");
+  endText.textContent =
+    "Þið eruð búin með spurningarnar sem þið völduð. Haldið áfram á borðinu ykkar og klárið í mark!";
+}
+
+startBtn.addEventListener("click", startGame);
+restartBtn.addEventListener("click", startGame);
+
+quitBtn.addEventListener("click", ()=>{
+  gameDiv.classList.add("hidden");
+  endDiv.classList.add("hidden");
+  setupDiv.classList.remove("hidden");
+});
+
+backBtn.addEventListener("click", ()=>{
+  endDiv.classList.add("hidden");
+  setupDiv.classList.remove("hidden");
+});
+
+nextBtn.addEventListener("click", advanceTurn);
+revealBtn.addEventListener("click", revealAnswer);
+spinBtn.addEventListener("click", doSpin);
+
+/* Rules modal events */
+rulesBtn.addEventListener("click", ()=>{ rulesModal.style.display="flex"; });
+closeRules.addEventListener("click", ()=>{ rulesModal.style.display="none"; });
+rulesModal.addEventListener("click", (e)=>{
+  if(e.target === rulesModal) rulesModal.style.display="none";
+});
+</script>
+</body>
+</html>
